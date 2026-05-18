@@ -12,6 +12,7 @@
 #include <QUuid>
 #include <QMessageBox>
 #include <QMap>
+#include <QElapsedTimer>
 #include "downloadmanager.h"
 
 class MainWindow : public QMainWindow
@@ -29,7 +30,7 @@ private slots:
     void onResume();
     void onCancel();
     void onOpenFolder();
-    void onGlobalSpeedChanged(int value);
+    void onGlobalSpeedChanged(int idx);
     void onMaxConcurrentChanged(int value);
     void onTaskAdded(const TaskInfo &info);
     void onTaskProgress(const QString &taskId, int percent, qint64 speed);
@@ -41,7 +42,9 @@ private:
     void addTaskToTable(const TaskInfo &info);
     int findRowByTaskId(const QString &taskId);
     static QString formatSize(qint64 bytes);
+    static QString formatSpeed(qint64 bytesPerSec);
     static QString statusToString(TaskStatus status);
+    QString getValidFileName(const QString &url, const QString &saveDir);
 
     // UI 组件
     QTableWidget *m_taskTable;
@@ -49,8 +52,10 @@ private:
     QComboBox *m_speedCombo;
     QSpinBox *m_concurrentSpin;
     QLabel *m_globalSpeedLabel, *m_globalProgressLabel;
-    QMap<QString, int> m_taskRowMap;
+    QMap<QString, int> m_taskRowMap;      // 任务ID -> 表格行号
     QString m_selectedTaskId;
+    qint64 m_lastTotalDownloaded;          // 用于全局速度计算
+    QElapsedTimer m_globalSpeedTimer;
 };
 
 #endif // MAINWINDOW_H
