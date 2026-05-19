@@ -3,3 +3,4 @@
 #include "EWIEGA46WW/moc_downloadtask.cpp"
 #include "EWIEGA46WW/moc_downloadworker.cpp"
 #include "EWIEGA46WW/moc_mainwindow.cpp"
+#include "EWIEGA46WW/moc_settingsdialog.cpp"

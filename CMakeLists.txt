@@ -24,7 +24,8 @@ set(PROJECT_SOURCES
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
-    qt_add_executable(DownloadTool MANUAL_FINALIZATION ${PROJECT_SOURCES})
+    qt_add_executable(DownloadTool MANUAL_FINALIZATION ${PROJECT_SOURCES}
+        settingsdialog.h settingsdialog.cpp)
 else()
     add_executable(DownloadTool ${PROJECT_SOURCES})
 endif()

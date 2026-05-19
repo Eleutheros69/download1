@@ -1,4 +1,5 @@
 #include "mainwindow.h"
+#include "settingsdialog.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QHeaderView>
@@ -16,8 +17,12 @@
 #include <QElapsedTimer>
 #include <QApplication>
 #include <QPalette>
+#include <QMenuBar>
+#include <QMenu>
+#include <QAction>
+#include <QSettings>
 
-// ==================== 全局样式表（增强对话框支持） ====================
+// ==================== 全局样式表（增强） ====================
 static const QString STYLE_SHEET = R"(
     QMainWindow {
         background-color: #f0f2f5;
@@ -34,6 +39,7 @@ static const QString STYLE_SHEET = R"(
         gridline-color: #dee2e6;
         selection-background-color: #4CAF50;
         selection-color: white;
+        border-radius: 8px;
     }
     QTableWidget::item {
         padding: 6px;
@@ -125,12 +131,33 @@ static const QString STYLE_SHEET = R"(
     QLabel {
         color: #212529;
     }
+    QMenuBar {
+        background-color: #e9ecef;
+        color: #212529;
+    }
+    QMenuBar::item {
+        background-color: transparent;
+        padding: 4px 8px;
+    }
+    QMenuBar::item:selected {
+        background-color: #4CAF50;
+        color: white;
+    }
+    QMenu {
+        background-color: white;
+        color: #212529;
+        border: 1px solid #ced4da;
+    }
+    QMenu::item:selected {
+        background-color: #4CAF50;
+        color: white;
+    }
 )";
 
 MainWindow::MainWindow(QWidget *parent)
-    : QMainWindow(parent), m_lastTotalDownloaded(0)
+    : QMainWindow(parent), m_lastTotalDownloaded(0), m_settingsDialog(nullptr)
 {
-    // 设置全局调色板，增强对话框对比度
+    // 设置全局调色板
     QPalette pal = QApplication::palette();
     pal.setColor(QPalette::Window, QColor(240,242,245));
     pal.setColor(QPalette::WindowText, QColor(33,37,41));
@@ -141,6 +168,8 @@ MainWindow::MainWindow(QWidget *parent)
     QApplication::setPalette(pal);
 
     setupUI();
+    createMenuBar();
+    applySettings();
 
     auto *mgr = DownloadManager::instance();
     connect(mgr, &DownloadManager::taskAdded, this, &MainWindow::onTaskAdded);
@@ -175,7 +204,7 @@ void MainWindow::setupUI()
     mainLayout->setSpacing(12);
     mainLayout->setContentsMargins(12, 12, 12, 12);
 
-    // 工具栏
+    // 工具栏（保留基本操作按钮，限速和并发移动到设置）
     QHBoxLayout *toolBar = new QHBoxLayout();
     toolBar->setSpacing(8);
     m_newBtn = new QPushButton("新建下载");
@@ -193,25 +222,6 @@ void MainWindow::setupUI()
     toolBar->addWidget(m_cancelBtn);
     toolBar->addWidget(m_openDirBtn);
     toolBar->addStretch();
-    toolBar->addWidget(new QLabel("全局限速:"));
-    m_speedCombo = new QComboBox();
-    // 存储实际限速值（KB/s）
-    m_speedCombo->addItem("不限速", 0);
-    m_speedCombo->addItem("100 KB/s", 100);
-    m_speedCombo->addItem("500 KB/s", 500);
-    m_speedCombo->addItem("1 MB/s", 1024);
-    m_speedCombo->addItem("2 MB/s", 2048);
-    m_speedCombo->addItem("5 MB/s", 5120);
-    m_speedCombo->addItem("10 MB/s", 10240);
-    m_speedCombo->setCurrentIndex(0);
-    m_speedCombo->setMinimumWidth(110);
-    toolBar->addWidget(m_speedCombo);
-    toolBar->addWidget(new QLabel("并行任务:"));
-    m_concurrentSpin = new QSpinBox();
-    m_concurrentSpin->setRange(1, 10);
-    m_concurrentSpin->setValue(3);
-    m_concurrentSpin->setMinimumWidth(65);
-    toolBar->addWidget(m_concurrentSpin);
     mainLayout->addLayout(toolBar);
 
     // 任务表格
@@ -225,7 +235,6 @@ void MainWindow::setupUI()
             << "剩余时间" << "线程数" << "状态" << "保存路径" << "任务ID(隐藏)";
     m_taskTable->setHorizontalHeaderLabels(headers);
 
-    // 设置列宽
     m_taskTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
     m_taskTable->setColumnWidth(1, 100);
     m_taskTable->setColumnWidth(2, 90);
@@ -257,8 +266,6 @@ void MainWindow::setupUI()
     connect(m_resumeBtn, &QPushButton::clicked, this, &MainWindow::onResume);
     connect(m_cancelBtn, &QPushButton::clicked, this, &MainWindow::onCancel);
     connect(m_openDirBtn, &QPushButton::clicked, this, &MainWindow::onOpenFolder);
-    connect(m_speedCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &MainWindow::onGlobalSpeedChanged);
-    connect(m_concurrentSpin, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::onMaxConcurrentChanged);
     connect(m_taskTable, &QTableWidget::itemSelectionChanged, [this](){
         int row = m_taskTable->currentRow();
         if (row >= 0) {
@@ -267,6 +274,76 @@ void MainWindow::setupUI()
             m_selectedTaskId.clear();
         }
     });
+}
+
+void MainWindow::createMenuBar()
+{
+    QMenuBar *menuBar = new QMenuBar(this);
+    setMenuBar(menuBar);
+
+    // 文件菜单
+    QMenu *fileMenu = menuBar->addMenu("文件");
+    QAction *newDownloadAction = fileMenu->addAction("新建下载");
+    connect(newDownloadAction, &QAction::triggered, this, &MainWindow::onNewDownload);
+    fileMenu->addSeparator();
+    QAction *exitAction = fileMenu->addAction("退出");
+    connect(exitAction, &QAction::triggered, this, &QWidget::close);
+
+    // 设置菜单
+    QMenu *settingsMenu = menuBar->addMenu("设置");
+    QAction *prefAction = settingsMenu->addAction("首选项");
+    connect(prefAction, &QAction::triggered, this, &MainWindow::showSettingsDialog);
+
+    // 帮助菜单
+    QMenu *helpMenu = menuBar->addMenu("帮助");
+    QAction *aboutAction = helpMenu->addAction("关于");
+    connect(aboutAction, &QAction::triggered, this, &MainWindow::showAboutDialog);
+}
+
+void MainWindow::applySettings()
+{
+    QSettings settings("SijiStudio", "DownloadTool");
+    // 限速
+    bool speedLimitEnabled = settings.value("SpeedLimit/Enabled", false).toBool();
+    int speedKB = settings.value("SpeedLimit/KB", 1024).toInt();
+    if (speedLimitEnabled && speedKB > 0) {
+        DownloadManager::instance()->setGlobalSpeedLimit(speedKB * 1024);
+    } else {
+        DownloadManager::instance()->setGlobalSpeedLimit(0);
+    }
+    // 最大并发
+    int maxConcurrent = settings.value("MaxConcurrent", 3).toInt();
+    DownloadManager::instance()->setMaxConcurrentTasks(maxConcurrent);
+    // 默认线程数会用在新建下载中，直接读取即可
+}
+
+void MainWindow::showSettingsDialog()
+{
+    if (!m_settingsDialog) {
+        m_settingsDialog = new SettingsDialog(this);
+        connect(m_settingsDialog, &SettingsDialog::settingsChanged, this, &MainWindow::applySettings);
+    }
+    m_settingsDialog->exec();
+}
+
+void MainWindow::showAboutDialog()
+{
+    QMessageBox aboutBox(this);
+    aboutBox.setWindowTitle("关于");
+    aboutBox.setTextFormat(Qt::RichText);
+    aboutBox.setText(
+        "<h3>多线程高速下载工具</h3>"
+        "<p>版本 1.0</p>"
+        "<p>开发者：四季工作室</p>"
+        "<p>本软件基于 Qt 6 开发，遵循 GNU General Public License v3.0 开源协议。</p>"
+        "<p>用户协议：<br>"
+        "本软件仅供学习交流使用，请勿用于非法用途。下载内容版权归原作者所有。</p>"
+        "<p>法律声明：<br>"
+        "四季工作室不对因使用本软件造成的任何损失负责。</p>"
+        "<p><a href=\"https://example.com/license\">查看完整许可证</a></p>"
+        );
+    aboutBox.setStandardButtons(QMessageBox::Ok);
+    aboutBox.exec();
 }
 
 QString MainWindow::getValidFileName(const QString &url, const QString &saveDir)
@@ -305,7 +382,9 @@ void MainWindow::onNewDownload()
     QString savePath = getValidFileName(urlStr, saveDir);
     QString fileName = QFileInfo(savePath).fileName();
 
-    int threads = 8;  // 默认8线程
+    // 从设置读取默认线程数
+    QSettings settings("SijiStudio", "DownloadTool");
+    int threads = settings.value("DefaultThreads", 8).toInt();
 
     TaskInfo info;
     info.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
@@ -341,15 +420,22 @@ void MainWindow::onResume()
 
 void MainWindow::onCancel()
 {
-    if (!m_selectedTaskId.isEmpty()) {
-        bool delFile = QMessageBox::question(this, "删除", "是否同时删除已下载的文件？") == QMessageBox::Yes;
-        DownloadManager::instance()->cancelTask(m_selectedTaskId, delFile);
-        int row = findRowByTaskId(m_selectedTaskId);
-        if (row >= 0) m_taskTable->removeRow(row);
+    if (m_selectedTaskId.isEmpty()) return;
+
+    bool delFile = QMessageBox::question(this, "删除", "是否同时删除已下载的文件？") == QMessageBox::Yes;
+    // 先停止任务（内部会停止所有分块线程）
+    DownloadManager::instance()->pauseTask(m_selectedTaskId);
+    // 调用取消删除
+    DownloadManager::instance()->cancelTask(m_selectedTaskId, delFile);
+
+    // 从表格移除
+    int row = findRowByTaskId(m_selectedTaskId);
+    if (row >= 0) {
+        m_taskTable->removeRow(row);
         m_taskRowMap.remove(m_selectedTaskId);
-        m_selectedTaskId.clear();
-        updateGlobalStats();
     }
+    m_selectedTaskId.clear();
+    updateGlobalStats();
 }
 
 void MainWindow::onOpenFolder()
@@ -391,16 +477,14 @@ void MainWindow::onOpenFolder()
     }
 }
 
-void MainWindow::onGlobalSpeedChanged(int idx)
+void MainWindow::onGlobalSpeedChanged(int idx)   // 不再需要，由设置对话框处理
 {
-    int speedKB = m_speedCombo->itemData(idx).toInt();
-    int speedBytes = speedKB * 1024;
-    DownloadManager::instance()->setGlobalSpeedLimit(speedBytes);
+    Q_UNUSED(idx);
 }
 
 void MainWindow::onMaxConcurrentChanged(int value)
 {
-    DownloadManager::instance()->setMaxConcurrentTasks(value);
+    Q_UNUSED(value);
 }
 
 void MainWindow::onTaskAdded(const TaskInfo &info)
