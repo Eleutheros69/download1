@@ -20,7 +20,7 @@ SettingsDialog::~SettingsDialog() {}
 void SettingsDialog::setupUI()
 {
     setWindowTitle("设置");
-    setMinimumWidth(400);
+    setMinimumWidth(450);
     QVBoxLayout *mainLayout = new QVBoxLayout(this);
 
     // 限速设置
@@ -62,6 +62,18 @@ void SettingsDialog::setupUI()
     threadLayout->addStretch();
     mainLayout->addWidget(threadGroup);
 
+    // 主题选择
+    QGroupBox *themeGroup = new QGroupBox("界面主题");
+    QHBoxLayout *themeLayout = new QHBoxLayout(themeGroup);
+    themeLayout->addWidget(new QLabel("选择主题:"));
+    m_themeCombo = new QComboBox();
+    m_themeCombo->addItem("浅色主题", "light");
+    m_themeCombo->addItem("暗黑主题", "dark");
+    m_themeCombo->addItem("海洋蓝", "blue");
+    themeLayout->addWidget(m_themeCombo);
+    themeLayout->addStretch();
+    mainLayout->addWidget(themeGroup);
+
     // 按钮
     QHBoxLayout *btnLayout = new QHBoxLayout();
     m_saveBtn = new QPushButton("保存");
@@ -84,12 +96,16 @@ void SettingsDialog::loadSettings()
     int limitKB = settings.value("SpeedLimit/KB", 1024).toInt();
     int maxConcurrent = settings.value("MaxConcurrent", 3).toInt();
     int defaultThreads = settings.value("DefaultThreads", 8).toInt();
+    QString theme = settings.value("Theme", "blue").toString();
 
     m_enableSpeedLimitCheck->setChecked(enabled);
     m_speedLimitCombo->setCurrentIndex(m_speedLimitCombo->findData(limitKB));
     m_speedLimitCombo->setEnabled(enabled);
     m_maxConcurrentSpin->setValue(maxConcurrent);
     m_defaultThreadsSpin->setValue(defaultThreads);
+
+    int themeIndex = m_themeCombo->findData(theme);
+    if (themeIndex >= 0) m_themeCombo->setCurrentIndex(themeIndex);
 }
 
 void SettingsDialog::saveSettings()
@@ -99,8 +115,11 @@ void SettingsDialog::saveSettings()
     settings.setValue("SpeedLimit/KB", m_speedLimitCombo->currentData().toInt());
     settings.setValue("MaxConcurrent", m_maxConcurrentSpin->value());
     settings.setValue("DefaultThreads", m_defaultThreadsSpin->value());
+    settings.setValue("Theme", m_themeCombo->currentData().toString());
+
     accept();
     emit settingsChanged();
+    emit themeChanged(getCurrentTheme());
 }
 
 int SettingsDialog::getSpeedLimitKB() const
@@ -121,4 +140,9 @@ int SettingsDialog::getDefaultThreads() const
 bool SettingsDialog::isSpeedLimitEnabled() const
 {
     return m_enableSpeedLimitCheck->isChecked();
+}
+
+QString SettingsDialog::getCurrentTheme() const
+{
+    return m_themeCombo->currentData().toString();
 }

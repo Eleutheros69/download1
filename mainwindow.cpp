@@ -22,8 +22,10 @@
 #include <QAction>
 #include <QSettings>
 
-// ==================== 全局样式表（增强） ====================
-static const QString STYLE_SHEET = R"(
+// ==================== 主题样式表 ====================
+
+// 浅色主题（原样式）
+static const QString LIGHT_THEME = R"(
     QMainWindow {
         background-color: #f0f2f5;
     }
@@ -154,22 +156,179 @@ static const QString STYLE_SHEET = R"(
     }
 )";
 
+// 暗黑主题
+static const QString DARK_THEME = R"(
+    QMainWindow, QWidget, QDialog, QMessageBox, QInputDialog {
+        background-color: #2d2d2d;
+        color: #e0e0e0;
+        font-family: "Segoe UI", "Microsoft YaHei", "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+        font-size: 9pt;
+    }
+    QTableWidget {
+        background-color: #3c3c3c;
+        alternate-background-color: #2d2d2d;
+        gridline-color: #555;
+        selection-background-color: #4CAF50;
+        selection-color: white;
+        border-radius: 8px;
+    }
+    QHeaderView::section {
+        background-color: #555;
+        color: white;
+    }
+    QPushButton {
+        background-color: #3c8c40;
+        color: white;
+        border: none;
+        padding: 6px 14px;
+        border-radius: 4px;
+    }
+    QPushButton:hover {
+        background-color: #2d6a2d;
+    }
+    QPushButton#cancelBtn {
+        background-color: #a94442;
+    }
+    QPushButton#openBtn {
+        background-color: #286090;
+    }
+    QProgressBar {
+        border: 1px solid #555;
+        border-radius: 3px;
+        text-align: center;
+        background-color: #3c3c3c;
+        color: #e0e0e0;
+    }
+    QProgressBar::chunk {
+        background-color: #5cb85c;
+        border-radius: 3px;
+    }
+    QComboBox, QSpinBox {
+        background-color: #3c3c3c;
+        color: #e0e0e0;
+        border: 1px solid #555;
+        border-radius: 4px;
+    }
+    QComboBox QAbstractItemView {
+        background-color: #3c3c3c;
+        color: #e0e0e0;
+        selection-background-color: #4CAF50;
+    }
+    QLabel {
+        color: #e0e0e0;
+    }
+    QMenuBar {
+        background-color: #3c3c3c;
+        color: #e0e0e0;
+    }
+    QMenuBar::item:selected {
+        background-color: #4CAF50;
+    }
+    QMenu {
+        background-color: #3c3c3c;
+        color: #e0e0e0;
+        border: 1px solid #555;
+    }
+    QMenu::item:selected {
+        background-color: #4CAF50;
+    }
+)";
+
+// 海洋蓝主题
+static const QString BLUE_THEME = R"(
+    QMainWindow, QWidget, QDialog, QMessageBox, QInputDialog {
+        background-color: #e8f0fe;
+        color: #0d3b66;
+        font-family: "Segoe UI", "Microsoft YaHei", "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+        font-size: 9pt;
+    }
+    QTableWidget {
+        background-color: white;
+        alternate-background-color: #f0f7ff;
+        gridline-color: #bbd4ff;
+        selection-background-color: #1976d2;
+        selection-color: white;
+        border-radius: 8px;
+    }
+    QHeaderView::section {
+        background-color: #4a90e2;
+        color: white;
+    }
+    QPushButton {
+        background-color: #1976d2;
+        color: white;
+        border: none;
+        padding: 6px 14px;
+        border-radius: 4px;
+    }
+    QPushButton:hover {
+        background-color: #1565c0;
+    }
+    QPushButton#cancelBtn {
+        background-color: #d32f2f;
+    }
+    QPushButton#openBtn {
+        background-color: #0288d1;
+    }
+    QProgressBar {
+        border: 1px solid #bbd4ff;
+        border-radius: 3px;
+        text-align: center;
+        background-color: #e3f2fd;
+    }
+    QProgressBar::chunk {
+        background-color: #42a5f5;
+        border-radius: 3px;
+    }
+    QComboBox, QSpinBox {
+        background-color: white;
+        color: #0d3b66;
+        border: 1px solid #bbd4ff;
+        border-radius: 4px;
+    }
+    QComboBox QAbstractItemView {
+        background-color: white;
+        color: #0d3b66;
+        selection-background-color: #1976d2;
+        selection-color: white;
+    }
+    QLabel {
+        color: #0d3b66;
+    }
+    QMenuBar {
+        background-color: #bbd4ff;
+        color: #0d3b66;
+    }
+    QMenuBar::item:selected {
+        background-color: #1976d2;
+        color: white;
+    }
+    QMenu {
+        background-color: white;
+        color: #0d3b66;
+        border: 1px solid #bbd4ff;
+    }
+    QMenu::item:selected {
+        background-color: #1976d2;
+        color: white;
+    }
+)";
+
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent), m_lastTotalDownloaded(0), m_settingsDialog(nullptr)
 {
-    // 设置全局调色板
+    // 设置全局调色板（避免对话框白底白字）
     QPalette pal = QApplication::palette();
     pal.setColor(QPalette::Window, QColor(240,242,245));
     pal.setColor(QPalette::WindowText, QColor(33,37,41));
     pal.setColor(QPalette::Base, QColor(255,255,255));
     pal.setColor(QPalette::Text, QColor(33,37,41));
-    pal.setColor(QPalette::Button, QColor(76,175,80));
-    pal.setColor(QPalette::ButtonText, Qt::white);
     QApplication::setPalette(pal);
 
     setupUI();
     createMenuBar();
     applySettings();
+    loadAndApplyTheme();   // 加载保存的主题
 
     auto *mgr = DownloadManager::instance();
     connect(mgr, &DownloadManager::taskAdded, this, &MainWindow::onTaskAdded);
@@ -196,7 +355,7 @@ void MainWindow::setupUI()
     setWindowTitle("多线程高速下载工具");
     resize(1200, 700);
     setMinimumSize(900, 500);
-    setStyleSheet(STYLE_SHEET);
+    // 初始样式稍后加载，此处留空
 
     QWidget *central = new QWidget(this);
     setCentralWidget(central);
@@ -204,7 +363,7 @@ void MainWindow::setupUI()
     mainLayout->setSpacing(12);
     mainLayout->setContentsMargins(12, 12, 12, 12);
 
-    // 工具栏（保留基本操作按钮，限速和并发移动到设置）
+    // 工具栏
     QHBoxLayout *toolBar = new QHBoxLayout();
     toolBar->setSpacing(8);
     m_newBtn = new QPushButton("新建下载");
@@ -244,7 +403,7 @@ void MainWindow::setupUI()
     m_taskTable->setColumnWidth(6, 60);
     m_taskTable->setColumnWidth(7, 70);
     m_taskTable->horizontalHeader()->setSectionResizeMode(8, QHeaderView::Interactive);
-    m_taskTable->setColumnWidth(9, 0);  // 隐藏ID列
+    m_taskTable->setColumnWidth(9, 0);
 
     m_taskTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_taskTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
@@ -281,7 +440,6 @@ void MainWindow::createMenuBar()
     QMenuBar *menuBar = new QMenuBar(this);
     setMenuBar(menuBar);
 
-    // 文件菜单
     QMenu *fileMenu = menuBar->addMenu("文件");
     QAction *newDownloadAction = fileMenu->addAction("新建下载");
     connect(newDownloadAction, &QAction::triggered, this, &MainWindow::onNewDownload);
@@ -289,12 +447,10 @@ void MainWindow::createMenuBar()
     QAction *exitAction = fileMenu->addAction("退出");
     connect(exitAction, &QAction::triggered, this, &QWidget::close);
 
-    // 设置菜单
     QMenu *settingsMenu = menuBar->addMenu("设置");
     QAction *prefAction = settingsMenu->addAction("首选项");
     connect(prefAction, &QAction::triggered, this, &MainWindow::showSettingsDialog);
 
-    // 帮助菜单
     QMenu *helpMenu = menuBar->addMenu("帮助");
     QAction *aboutAction = helpMenu->addAction("关于");
     connect(aboutAction, &QAction::triggered, this, &MainWindow::showAboutDialog);
@@ -303,7 +459,6 @@ void MainWindow::createMenuBar()
 void MainWindow::applySettings()
 {
     QSettings settings("SijiStudio", "DownloadTool");
-    // 限速
     bool speedLimitEnabled = settings.value("SpeedLimit/Enabled", false).toBool();
     int speedKB = settings.value("SpeedLimit/KB", 1024).toInt();
     if (speedLimitEnabled && speedKB > 0) {
@@ -311,10 +466,26 @@ void MainWindow::applySettings()
     } else {
         DownloadManager::instance()->setGlobalSpeedLimit(0);
     }
-    // 最大并发
     int maxConcurrent = settings.value("MaxConcurrent", 3).toInt();
     DownloadManager::instance()->setMaxConcurrentTasks(maxConcurrent);
-    // 默认线程数会用在新建下载中，直接读取即可
+}
+
+void MainWindow::loadAndApplyTheme()
+{
+    QSettings settings("SijiStudio", "DownloadTool");
+    QString theme = settings.value("Theme", "blue").toString();
+    applyTheme(theme);
+}
+
+void MainWindow::applyTheme(const QString &theme)
+{
+    if (theme == "dark") {
+        qApp->setStyleSheet(DARK_THEME);
+    } else if (theme == "blue") {
+        qApp->setStyleSheet(BLUE_THEME);
+    } else {
+        qApp->setStyleSheet(LIGHT_THEME);
+    }
 }
 
 void MainWindow::showSettingsDialog()
@@ -322,6 +493,7 @@ void MainWindow::showSettingsDialog()
     if (!m_settingsDialog) {
         m_settingsDialog = new SettingsDialog(this);
         connect(m_settingsDialog, &SettingsDialog::settingsChanged, this, &MainWindow::applySettings);
+        connect(m_settingsDialog, &SettingsDialog::themeChanged, this, &MainWindow::applyTheme);
     }
     m_settingsDialog->exec();
 }
@@ -382,7 +554,6 @@ void MainWindow::onNewDownload()
     QString savePath = getValidFileName(urlStr, saveDir);
     QString fileName = QFileInfo(savePath).fileName();
 
-    // 从设置读取默认线程数
     QSettings settings("SijiStudio", "DownloadTool");
     int threads = settings.value("DefaultThreads", 8).toInt();
 
@@ -423,12 +594,9 @@ void MainWindow::onCancel()
     if (m_selectedTaskId.isEmpty()) return;
 
     bool delFile = QMessageBox::question(this, "删除", "是否同时删除已下载的文件？") == QMessageBox::Yes;
-    // 先停止任务（内部会停止所有分块线程）
     DownloadManager::instance()->pauseTask(m_selectedTaskId);
-    // 调用取消删除
     DownloadManager::instance()->cancelTask(m_selectedTaskId, delFile);
 
-    // 从表格移除
     int row = findRowByTaskId(m_selectedTaskId);
     if (row >= 0) {
         m_taskTable->removeRow(row);
@@ -477,7 +645,7 @@ void MainWindow::onOpenFolder()
     }
 }
 
-void MainWindow::onGlobalSpeedChanged(int idx)   // 不再需要，由设置对话框处理
+void MainWindow::onGlobalSpeedChanged(int idx)   // 不再需要
 {
     Q_UNUSED(idx);
 }

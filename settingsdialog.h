@@ -19,9 +19,11 @@ public:
     int getMaxConcurrent() const;
     int getDefaultThreads() const;
     bool isSpeedLimitEnabled() const;
+    QString getCurrentTheme() const;
 
 signals:
-    void settingsChanged();  // 当设置改变时发出，供MainWindow更新
+    void settingsChanged();
+    void themeChanged(const QString &theme);  // 主题改变信号
 
 private slots:
     void onSpeedLimitToggled(bool checked);
@@ -35,6 +37,7 @@ private:
     QCheckBox *m_enableSpeedLimitCheck;
     QSpinBox *m_maxConcurrentSpin;
     QSpinBox *m_defaultThreadsSpin;
+    QComboBox *m_themeCombo;          // 主题选择下拉框
     QPushButton *m_saveBtn;
     QPushButton *m_cancelBtn;
 };
